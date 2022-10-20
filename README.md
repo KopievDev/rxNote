@@ -90,3 +90,28 @@ extension HolidaysViewController {
     }
 }
 ```
+
+
+```swift 
+class ViewModel {
+    private let disposeBag = DisposeBag()
+    // MARK: - Actions
+    let isLoading = BehaviorSubject<Bool>(value: false)
+    func request() {
+        isLoading.onNext(true)
+        HolidaysService.shared.getHolidays(country: country, success: { (code, holidays) in
+            self.isLoading.onNext(false)
+        }
+    }
+}
+
+class VC {
+    func bindHUD() {
+        viewModel.isLoading
+            .subscribe(onNext: { [weak self] isLoading in
+                isLoading ? self?.showProgress() : self?.hideProgress()
+            })
+            .disposed(by: disposeBag)
+    }
+}
+```
