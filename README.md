@@ -115,3 +115,91 @@ class VC {
     }
 }
 ```
+
+```swift
+import UIKit
+import RxSwift
+import RxDataSources
+import RxCocoa
+
+enum Cell {
+    case title(String)
+    case zalupa(String)
+}
+
+class ViewController: UIViewController {
+    enum ActionCell {
+        case tapCell(Int), showAlert
+    }
+    
+    @IBOutlet var tableView: UITableView!
+    @IBOutlet var switchView: UISwitch!
+    
+    let cells = BehaviorRelay<[Cell]>(value: [.title("ZalupaCell"), .zalupa("PupaCell"), .zalupa("PupaCell"), .zalupa("PupaCell")])
+    let url = BehaviorRelay<String>(value: "")
+    let bag = DisposeBag()
+    let action = PublishRelay<ActionCell>()
+    let getter = HTTPGet()
+    let testBind = BehaviorRelay<Bool>(value: false)
+    
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        switchView.rx.value.bind(to: testBind).disposed(by: bag)
+        
+        testBind.bind { print($0) }.disposed(by: bag)
+        
+        cells.bind(to: tableView.rx.items) { table, row, data in
+            switch data {
+            case .zalupa(let title):
+                let cell = table.dequeueReusableCell(withIdentifier: title)
+                return cell!
+            case .title(let title):
+                let cell = table.dequeueReusableCell(withIdentifier: title)
+                return cell!
+            }
+         
+        }.disposed(by: bag)
+        
+        tableView.rx.itemSelected
+            .map { ActionCell.tapCell($0.row) }
+            .bind(to: action)
+            .disposed(by: bag)
+        
+        action.bind {
+            switch $0 {
+            case .tapCell(let index):
+                print("Hello \(index)")
+            case .showAlert:
+                print("Hello alert")
+            }
+        }.disposed(by: bag)
+        
+//        url.accept("https://rollstime.ru/api/catalog")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [self] in
+            getter.url.accept("https://jsonplaceholder.typicode.com/todos/2")
+
+        }
+        getter.url.accept("https://jsonplaceholder.typicode.com/todos/1")
+        
+        getter.data.bind { print($0) }.disposed(by: bag)
+    }
+    
+
+
+}
+
+class HTTPGet {
+    let url = BehaviorRelay<String>(value: "")
+    let data = BehaviorRelay<[String:Any]>(value: [:])
+    private let bag = DisposeBag()
+
+    init() {
+        url.compactMap(URL.init)
+            .map { URLRequest(url: $0) }
+            .flatMap { URLSession.shared.rx.data(request: $0) }
+            .compactMap { try? JSONSerialization.jsonObject(with: $0) as? [String:Any] }
+            .bind { [weak self] in self?.data.accept($0) }
+            .disposed(by: bag)
+    }
+}
+```
